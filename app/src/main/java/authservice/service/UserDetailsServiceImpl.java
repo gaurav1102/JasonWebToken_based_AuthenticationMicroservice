@@ -1,66 +1,65 @@
 package authservice.service;
 
 import authservice.entities.UserInfo;
-import authservice.model.UserInfoDto;
+import authservice.entities.UserRole;
+import authservice.exception.BadRequestException;
 import authservice.repository.UserRepository;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import authservice.repository.UserRoleRepository;
+import authservice.request.SignupRequestDTO;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashSet;
-import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
-@Component
-@AllArgsConstructor
-@Data
-public class UserDetailsServiceImpl implements UserDetailsService
-{
+@Service
+public class UserDetailsServiceImpl implements UserDetailsService {
 
-    @Autowired
     private final UserRepository userRepository;
-
-    @Autowired
+    private final UserRoleRepository userRoleRepository;
     private final PasswordEncoder passwordEncoder;
 
-
-    private static final Logger log = LoggerFactory.getLogger(UserDetailsServiceImpl.class);
+    public UserDetailsServiceImpl(
+            UserRepository userRepository,
+            UserRoleRepository userRoleRepository,
+            PasswordEncoder passwordEncoder
+    ) {
+        this.userRepository = userRepository;
+        this.userRoleRepository = userRoleRepository;
+        this.passwordEncoder = passwordEncoder;
+    }
 
     @Override
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException
-    {
-
-        log.debug("Entering in loadUserByUsername Method...");
-        UserInfo user = userRepository.findByUsername(username);
-        if(user == null){
-            log.error("Username not found: " + username);
-            throw new UsernameNotFoundException("could not found user..!!");
-        }
-        log.info("User Authenticated Successfully..!!!");
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        UserInfo user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found for username: " + username));
         return new CustomUserDetails(user);
     }
 
-    public UserInfo checkIfUserAlreadyExist(UserInfoDto userInfoDto){
-        return userRepository.findByUsername(userInfoDto.getUsername());
-    }
-
-    public Boolean signupUser(UserInfoDto userInfoDto){
-        //        ValidationUtil.validateUserAttributes(userInfoDto);
-        userInfoDto.setPassword(passwordEncoder.encode(userInfoDto.getPassword()));
-        if(Objects.nonNull(checkIfUserAlreadyExist(userInfoDto))){
-            return false;
+    @Transactional
+    public UserInfo signupUser(SignupRequestDTO request) {
+        if (userRepository.existsByUsername(request.getUsername())) {
+            throw new BadRequestException("Username already exists");
         }
-        String userId = UUID.randomUUID().toString();
-        userRepository.save(new UserInfo(userId, userInfoDto.getUsername(), userInfoDto.getPassword(), new HashSet<>()));
-        // pushEventToQueue
-        return true;
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new BadRequestException("Email already exists");
+        }
+
+        UserRole defaultRole = userRoleRepository.findByName("ROLE_USER")
+                .orElseThrow(() -> new BadRequestException("Default ROLE_USER is not configured"));
+
+        UserInfo user = UserInfo.builder()
+                .userId(UUID.randomUUID().toString())
+                .username(request.getUsername())
+                .email(request.getEmail())
+                .password(passwordEncoder.encode(request.getPassword()))
+                .roles(Set.of(defaultRole))
+                .build();
+
+        return userRepository.save(user);
     }
 }

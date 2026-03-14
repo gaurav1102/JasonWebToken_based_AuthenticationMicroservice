@@ -1,9 +1,12 @@
 package authservice.response;
 
+import lombok.Builder.Default;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.util.List;
 
 @Data
 @AllArgsConstructor
@@ -12,5 +15,9 @@ import lombok.NoArgsConstructor;
 public class JwtResponseDTO {
 
     private String accessToken;
-    private String token;
+    private String refreshToken;
+    private String tokenType;
+    private long expiresInSeconds;
+    @Default
+    private List<String> roles = List.of();
 }

@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: authservice-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-authservice}
+      POSTGRES_USER: ${POSTGRES_USERNAME:-auth_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: authservice-app
+    depends_on:
+      - postgres
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-authservice}
+      POSTGRES_USERNAME: ${POSTGRES_USERNAME:-auth_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      SERVER_PORT: 9898
+      JWT_SECRET: ${JWT_SECRET:-ZmFrZS1iYXNlNjQtc2VjcmV0LWZvci1kZXYtb25seS1jaGFuZ2UtbWU=}
+      JWT_ACCESS_TOKEN_EXPIRATION_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRATION_MINUTES:-15}
+      JWT_REFRESH_TOKEN_EXPIRATION_DAYS: ${JWT_REFRESH_TOKEN_EXPIRATION_DAYS:-7}
+    ports:
+      - "9898:9898"
+
+volumes:
+  postgres_data:
